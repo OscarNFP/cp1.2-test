@@ -61,6 +61,7 @@ pipeline{
                         export PYTHONPATH=$WORKSPACE
                         sleep 5
                         pytest --junitxml=result-rest.xml test/rest
+                        sleep 5
                         kill $FLASK_PID
                         kill $WIREMOCK_PID                   
                     '''
@@ -87,8 +88,9 @@ pipeline{
                             export FLASK_APP=app/api.py
                             flask run &
                             FLASK_PID=$!
-                            sleep 5
+                            sleep 10
                             /var/jenkins_home/apache-jmeter-5.6.3/bin/jmeter.sh -n -t test/jmeter/performance-test.jmx  -f -l flask.jtl
+                            sleep 5
                             kill $FLASK_PID
                         '''
                         perfReport sourceDataFiles: 'flask.jtl'

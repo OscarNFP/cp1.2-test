@@ -9,7 +9,7 @@ pipeline{
         stage('GET CODE'){
             // Paso para clonar el repositorio Git - Checkout del SCM para la RAMA - configurado en Jenkins
             steps{
-                //git 'https://github.com/OscarNFP/cp1.1.git'
+                //git 'https://github.com/OscarNFP/cp1.2.git'
                 //checkout scm // Aquí no lo decvla Jenkins ya lo hace por defecto
                 sh '''
                 echo "Aquí se clona el repositorio Git. Jenkins ya lo hace por defecto"
@@ -18,66 +18,83 @@ pipeline{
             }
         }
 
-        // Etapa de construcción del proyecto
-        stage('STATIC'){
-            steps{
-                sh '''
-                    flake8 --exit-zero --format=pylint app > flake8.out
-                '''
-                recordIssues tools: [flake8(name: 'Flake8', pattern: 'flake8.out')], qualityGates: [[threshold: 8, type: 'TOTAL', unstable: true], [threshold: 10, type: 'TOTAL', unstable: false]]
-            }
-
-        }
+        // Etapa de Test Unitarios, Cobertura y de código estático
         stage('TEST'){
             parallel
             {
                 // Ejecutamos las pruebas unitarias con cobertura de código para evitar duplicidad en las ejecución de las pruebas unitarias
-                stage('UNIT + COVERAGE'){
+                stage('UNIT + COBERTURA'){
                     steps{
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE'){
                             sh '''
                                 export PYTHONPATH=.
-                                coverage run --source=app --omit=app/__init_.py,app/api.py -m pytest --junitxml=result-unit.xml test/unit
-                                coverage xml
+                                python3 -m coverage run --source=app --omit=app/__init_.py,app/api.py -m pytest --junitxml=result-unit.xml test/unit
+                                python3 -m coverage xml
                             '''
                         }
                         recordCoverage qualityGates: [[criticality: 'ERROR', integerThreshold: 85, metric: 'LINE', threshold: 85.0] ,[integerThreshold: 95, metric: 'LINE', threshold: 95.0], [criticality: 'ERROR', integerThreshold: 80, metric: 'BRANCH', threshold: 80.0], [integerThreshold: 90, metric: 'BRANCH', threshold: 90.0]], tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']]   
                     }
-
                 }
-                stage('REST'){
+                stage('STATIC'){
                     steps{
-                        sh '''
-                            export FLASK_APP=app/api.py
-                            flask run &
-                            java -jar /var/jenkins_home/wiremock-standalone-3.13.2.jar --port 9090 --root-dir test/wiremock &
-                            export PYTHONPATH=$WORKSPACE
-                            sleep 5
-                            pytest --junitxml=result-rest.xml test/rest                   
-                        '''
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE'){
+                            sh '''
+                                flake8 --exit-zero --format=pylint app > flake8.out
+                            '''
+                        }
+                        recordIssues tools: [flake8(name: 'Flake8', pattern: 'flake8.out')], qualityGates: [[threshold: 8, type: 'TOTAL', unstable: true], [threshold: 10, type: 'TOTAL', unstable: false]]
                     }
                 }
             }
         }
 
-        stage('SECURITY') {
+        // Pruebas de integración
+        stage('REST'){
             steps{
-                sh '''
-                    bandit --exit-zero -r . -f custom -o bandit.out --msg-template "{abspath}:{line}: [{test_id}] {msg}"
-                '''
-                recordIssues tools: [pyLint(name: 'Bandit', pattern: 'bandit.out')], qualityGates: [[threshold: 2, type: 'TOTAL', unstable: true], [threshold: 4, type: 'TOTAL', unstable: false]]
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    sh '''
+                        export FLASK_APP=app/api.py
+                        flask run &
+                        FLASK_PID=$!
+                        java -jar /var/jenkins_home/wiremock-standalone-3.13.2.jar --port 9090 --root-dir test/wiremock &
+                        WIREMOCK_PID=$!
+                        export PYTHONPATH=$WORKSPACE
+                        sleep 5
+                        pytest --junitxml=result-rest.xml test/rest
+                        kill $FLASK_PID
+                        kill $WIREMOCK_PID                   
+                    '''
+                }
             }
         }
-       stage('PERFORMANCE') {
-            steps{
-                sh '''
-                    export FLASK_APP=app/api.py
-                    flask run &
-                    sleep 5
-                    /var/jenkins_home/apache-jmeter-5.6.3/bin/jmeter.sh -n -t test/jmeter/flask.jmx  -f -l flask.jtl
-                '''
-                perfReport sourceDataFiles: 'flask.jtl'
+
+    stage ('Results'){
+        parallel
+        {
+                // Pruebas de seguridad
+                stage('SECURITY') {
+                    steps{
+                        sh '''
+                            bandit --exit-zero -r . -f custom -o bandit.out --msg-template "{abspath}:{line}: [{test_id}] {msg}"
+                        '''
+                        recordIssues tools: [pyLint(name: 'Bandit', pattern: 'bandit.out')], qualityGates: [[threshold: 2, type: 'TOTAL', unstable: true], [threshold: 4, type: 'TOTAL', unstable: false]]
+                    }
+                }
+                // Pruebas de rendimiento
+               stage('PERFORMANCE') {
+                    steps{
+                        sh '''
+                            export FLASK_APP=app/api.py
+                            flask run &
+                            FLASK_PID=$!
+                            sleep 5
+                            /var/jenkins_home/apache-jmeter-5.6.3/bin/jmeter.sh -n -t test/jmeter/performance-test.jmx  -f -l flask.jtl
+                            kill $FLASK_PID
+                        '''
+                        perfReport sourceDataFiles: 'flask.jtl'
+                    }
+                } 
             }
-        } 
+        }
     }
 }

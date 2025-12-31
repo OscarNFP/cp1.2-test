@@ -9,7 +9,8 @@ pipeline{
         stage('Get Code'){
             // Paso para clonar el repositorio Git
             steps{
-                git 'https://github.com/OscarNFP/cp1.2-test.git'
+                //git 'https://github.com/OscarNFP/cp1.2-test.git'
+                checkout scm
                 sh 'echo $WORKSPACE'
             }
         }

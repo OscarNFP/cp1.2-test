@@ -7,7 +7,7 @@ pipeline{
 
         //Etapa para obtener el código fuente
         stage('Get Code'){
-            // Paso para clonar el repositorio Git
+            // Realizamos el checkout del SCM configurado en Jenkins
             steps{
                 checkout scm
                 sh 'echo $WORKSPACE'
@@ -49,13 +49,15 @@ pipeline{
                             export FLASK_APP=app/api.py
                             flask run &
                             FLASK_PID=$!
-                            java -jar /var/jenkins_home/wiremock-standalone-3.13.2.jar --port 9090 --root-dir test/wiremock &
+                            WIREMOCK_PATH="/var/jenkins_home"
+                            java -jar $WIREMOCK_PATH/wiremock-standalone-3.13.2.jar --port 9090 --root-dir test/wiremock &
                             WIREMOCK_PID=$!
                             export PYTHONPATH=$WORKSPACE
                             sleep 5
                             pytest --junitxml=result-rest.xml test/rest
                             kill $FLASK_PID
                             kill $WIREMOCK_PID
+                            WIREMOCK_PATH=""
                         '''
                     }
                 }
@@ -87,9 +89,11 @@ pipeline{
                     export FLASK_APP=app/api.py
                     flask run &
                     FLASK_PID=$!
+                    JMETER_PATH="/var/jenkins_home/apache-jmeter-5.6.3/bin"
                     sleep 5
-                    /var/jenkins_home/apache-jmeter-5.6.3/bin/jmeter.sh -n -t test/jmeter/performance-test.jmx  -f -l flask.jtl
+                    $JMETER_PATH/jmeter.sh -n -t test/jmeter/performance-test.jmx  -f -l flask.jtl
                     kill $FLASK_PID
+                    JMETER_PATH=""
                 '''
                 perfReport sourceDataFiles: 'flask.jtl'
             }

@@ -164,6 +164,15 @@ pipeline{
                         )
                     }
                 }
+                stage('Clean agent3') {
+                    agent { label 'agent3' }
+                    steps {
+                        cleanWs(
+                            deleteDirs: true,
+                            disableDeferredWipeout: true
+                        )
+                    }
+                }
             }
         }
     }

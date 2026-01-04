@@ -26,10 +26,10 @@ pipeline{
         stage('Static'){
             steps{
                 sh '''
-                flake8 --exit-zero --format=pylint app > flake8.out
                 echo ${WORKSPACE}
                 whoami
                 hostname
+                flake8 --exit-zero --format=pylint app > flake8.out
                 '''
                 recordIssues tools: [flake8(name: 'Flake8', pattern: 'flake8.out')], qualityGates: [[threshold: 9, type: 'TOTAL', unstable: true], [threshold: 11, type: 'TOTAL', unstable: false]]
             }
@@ -148,6 +148,11 @@ pipeline{
                 stage('Clean agent1') {
                     agent { label 'agent1' }
                     steps {
+                        sh '''
+                            echo ${WORKSPACE}
+                            whoami
+                            hostname
+                        '''
                         cleanWs(
                             deleteDirs: true,
                             disableDeferredWipeout: true
@@ -158,6 +163,11 @@ pipeline{
                 stage('Clean agent2') {
                     agent { label 'agent2' }
                     steps {
+                        sh '''
+                            echo ${WORKSPACE}
+                            whoami
+                            hostname
+                        '''
                         cleanWs(
                             deleteDirs: true,
                             disableDeferredWipeout: true
@@ -167,6 +177,11 @@ pipeline{
                 stage('Clean agent3') {
                     agent { label 'agent3' }
                     steps {
+                        sh '''
+                            echo ${WORKSPACE}
+                            whoami
+                            hostname
+                        '''
                         cleanWs(
                             deleteDirs: true,
                             disableDeferredWipeout: true
@@ -180,6 +195,11 @@ pipeline{
     // Limpieza del workspace en Jenkins al finalizar el pipeline
     post {
         always {
+            sh '''
+                echo ${WORKSPACE}
+                whoami
+                hostname
+            '''
             cleanWs(
                 deleteDirs: true,
                 disableDeferredWipeout: true

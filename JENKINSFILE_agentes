@@ -2,6 +2,9 @@ pipeline{
     // Cualquier agente disponible para ejecutar el pipeline
     agent any
 
+    // Evitar el checkout automático del código fuente
+    options { skipDefaultCheckout() }
+
     // Estapas del pipeline
     stages{
 
@@ -9,9 +12,8 @@ pipeline{
         stage('GET CODE'){
             // Paso para clonar el repositorio Git
             steps{
-                git 'https://github.com/OscarNFP/cp1.1.git'
+                checkout scm
                 sh '''
-                echo "Aquí se clona el repositorio Git. Jenkins ya lo hace por defecto"
                 echo $WORKSPACE
                 whoami
                 hostname
@@ -20,54 +22,131 @@ pipeline{
             }
         }
 
-        // Etapa de construcción del proyecto
-        stage('BUILD'){
+        // Etapa de prueba de código estático
+        stage('Static'){
             steps{
                 sh '''
-                echo "No hacemos nada, Python no necesita compilación"
+                flake8 --exit-zero --format=pylint app > flake8.out
                 echo ${WORKSPACE}
                 whoami
                 hostname
                 '''
+                recordIssues tools: [flake8(name: 'Flake8', pattern: 'flake8.out')], qualityGates: [[threshold: 9, type: 'TOTAL', unstable: true], [threshold: 11, type: 'TOTAL', unstable: false]]
             }
 
         }
-        stage('TEST'){
+        // Etapas (paralelas) de test unitarios y de integración
+        stage('Test'){
             parallel{
-                stage('UNIT'){
+                stage('Unit'){
                     agent {label 'agent1'}
-                    steps{
-                        unstash name:'code'
-                        sh '''
-                            echo ${WORKSPACE}
-                            whoami
-                            hostname
-                            export PYTHONPATH=${WORKSPACE}
-                            pytest --junitxml=result-unit.xml test/unit
-                        '''
-                    }
-
+                        steps{
+                            catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE'){
+                                unstash name:'code'
+                                sh '''
+                                    echo ${WORKSPACE}
+                                    whoami
+                                    hostname
+                                    export PYTHONPATH=.
+                                    python3 -m coverage run --source=app --omit=app/__init__.py,app/api.py -m pytest --junitxml=result-unit.xml test/unit
+                                    python3 -m coverage xml
+                                '''
+                            }
+                            stash name: 'coverage', includes: 'coverage.xml'
+                            junit 'result-unit.xml'
+                        }
                 }
                 stage('REST'){
                     agent {label 'agent2'}
                     steps{
                         unstash name:'code'
                         sh '''
+                            echo ${WORKSPACE}
+                            whoami
+                            hostname
                             export FLASK_APP=app/api.py
                             flask run &
-                            java -jar /var/jenkins_home/wiremock-standalone-3.13.2.jar --port 9090 --root-dir test/wiremock &
+                            FLASK_PID=$!
+                            WIREMOCK_PATH="/var/jenkins_home"
+                            java -jar $WIREMOCK_PATH/wiremock-standalone-3.13.2.jar --port 9090 --root-dir test/wiremock &
+                            WIREMOCK_PID=$!
                             export PYTHONPATH=$WORKSPACE
-                            pytest --junitxml=result-rest.xml test/rest                   
+                            sleep 5
+                            pytest --junitxml=result-rest.xml test/rest
+                            kill $FLASK_PID
+                            kill $WIREMOCK_PID
+                            WIREMOCK_PATH=""                  
                         '''
+                        junit 'result-rest.xml'
                     }
                 }
             }
         }
-        stage ('Results'){
-            steps{
-                unstash name:'result-unit'
-                unstash name:'result-rest'
-                junit 'result-*.xml'
+
+        // Etapas (paralelas) de validación post-test
+        stage('Post-Test Validation') {
+            parallel {
+
+                // Etapa de cobertura, los datos los generamos en las pruebas unitarias evitando llamar dos veces a pytest
+                // Aquí solo generamos el informe.
+                stage('Coverage') {
+                    agent { label 'agent1' }
+                    steps {
+                        unstash 'coverage'
+                        sh '''
+                            echo ${WORKSPACE}
+                            whoami
+                            hostname
+                        '''
+                        recordCoverage qualityGates: [[criticality: 'ERROR', integerThreshold: 85, metric: 'LINE', threshold: 85.0] ,[integerThreshold: 95, metric: 'LINE', threshold: 95.0], [criticality: 'ERROR', integerThreshold: 80, metric: 'BRANCH', threshold: 80.0], [integerThreshold: 90, metric: 'BRANCH', threshold: 90.0]], tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']]
+                    }
+                }
+
+                // Estapa de test de seguridad
+                stage('Security Test') {
+                    agent { label 'agent2' }
+                    steps {
+                        unstash 'code'
+                        sh '''
+                            echo ${WORKSPACE}
+                            whoami
+                            hostname
+                            bandit --exit-zero -r . -f custom -o bandit.out --msg-template "{abspath}:{line}: [{test_id}] {msg}"
+                        '''
+                        recordIssues tools: [pyLint(name: 'Bandit', pattern: 'bandit.out')], qualityGates: [[threshold: 1, type: 'TOTAL', unstable: true], [threshold: 2, type: 'TOTAL', unstable: false]]
+                    }
+                }
+
+               // Pruebas de rendimiento
+                stage('Performance') {
+                    agent { label 'agent1' }
+                    steps {
+                        unstash 'code'
+                        sh '''
+                            echo ${WORKSPACE}
+                            whoami
+                            hostname
+                            export FLASK_APP=app/api.py
+                            flask run &
+                            FLASK_PID=$!
+                            JMETER_PATH="/var/jenkins_home/apache-jmeter-5.6.3/bin"
+                            sleep 5
+                            $JMETER_PATH/jmeter.sh -n -t test/jmeter/performance-test.jmx  -f -l flask.jtl
+                            kill $FLASK_PID
+                            JMETER_PATH=""
+                        '''
+                        perfReport sourceDataFiles: 'flask.jtl'
+                    }
+                }
+            }
+        }
+        // Limpieza del workspace al finalizar el pipeline
+        post {
+            always {
+                cleanWs(
+                    deleteDirs: true,
+                    disableDeferredWipeout: true
+                )
             }
         }
     }

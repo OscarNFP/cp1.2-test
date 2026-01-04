@@ -119,7 +119,7 @@ pipeline{
 
                // Pruebas de rendimiento
                 stage('Performance') {
-                    agent { label 'agent1' }
+                    agent { label 'agent3' }
                     steps {
                         unstash 'code'
                         sh '''

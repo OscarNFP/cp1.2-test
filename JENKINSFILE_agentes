@@ -141,7 +141,34 @@ pipeline{
             }
         }
     }
-    // Limpieza del workspace al finalizar el pipeline
+    
+    // Etapa de limpieza de workspaces en agentes
+    stage('Cleanup') {
+        parallel {
+
+            stage('Clean agent1') {
+                agent { label 'agent1' }
+                steps {
+                    cleanWs(
+                        deleteDirs: true,
+                        disableDeferredWipeout: true
+                    )
+                }
+            }
+
+            stage('Clean agent2') {
+                agent { label 'agent2' }
+                steps {
+                    cleanWs(
+                        deleteDirs: true,
+                        disableDeferredWipeout: true
+                    )
+                }
+            }
+        }
+    }
+
+    // Limpieza del workspace en Jenkins al finalizar el pipeline
     post {
         always {
             cleanWs(

@@ -67,7 +67,7 @@ pipeline{
                             export FLASK_APP=app/api.py
                             flask run &
                             FLASK_PID=$!
-                            WIREMOCK_PATH="/var/jenkins_home"
+                            WIREMOCK_PATH="/home/jenkins/agent"
                             java -jar $WIREMOCK_PATH/wiremock-standalone-3.13.2.jar --port 9090 --root-dir test/wiremock &
                             WIREMOCK_PID=$!
                             export PYTHONPATH=$WORKSPACE
@@ -129,7 +129,7 @@ pipeline{
                             export FLASK_APP=app/api.py
                             flask run &
                             FLASK_PID=$!
-                            JMETER_PATH="/var/jenkins_home/apache-jmeter-5.6.3/bin"
+                            JMETER_PATH="/home/jenkins/agent/apache-jmeter-5.6.3/bin"
                             sleep 5
                             $JMETER_PATH/jmeter.sh -n -t test/jmeter/performance-test.jmx  -f -l flask.jtl
                             kill $FLASK_PID

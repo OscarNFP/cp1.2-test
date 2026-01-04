@@ -1,0 +1,74 @@
+pipeline{
+    // Cualquier agente disponible para ejecutar el pipeline
+    agent any
+
+    // Estapas del pipeline
+    stages{
+
+        //Etapa para obtener el código fuente
+        stage('GET CODE'){
+            // Paso para clonar el repositorio Git
+            steps{
+                git 'https://github.com/OscarNFP/cp1.1.git'
+                sh '''
+                echo "Aquí se clona el repositorio Git. Jenkins ya lo hace por defecto"
+                echo $WORKSPACE
+                whoami
+                hostname
+                '''
+                stash name:'code', includes:'**'
+            }
+        }
+
+        // Etapa de construcción del proyecto
+        stage('BUILD'){
+            steps{
+                sh '''
+                echo "No hacemos nada, Python no necesita compilación"
+                echo ${WORKSPACE}
+                whoami
+                hostname
+                '''
+            }
+
+        }
+        stage('TEST'){
+            parallel{
+                stage('UNIT'){
+                    agent {label 'agent1'}
+                    steps{
+                        unstash name:'code'
+                        sh '''
+                            echo ${WORKSPACE}
+                            whoami
+                            hostname
+                            export PYTHONPATH=${WORKSPACE}
+                            pytest --junitxml=result-unit.xml test/unit
+                        '''
+                    }
+
+                }
+                stage('REST'){
+                    agent {label 'agent2'}
+                    steps{
+                        unstash name:'code'
+                        sh '''
+                            export FLASK_APP=app/api.py
+                            flask run &
+                            java -jar /var/jenkins_home/wiremock-standalone-3.13.2.jar --port 9090 --root-dir test/wiremock &
+                            export PYTHONPATH=$WORKSPACE
+                            pytest --junitxml=result-rest.xml test/rest                   
+                        '''
+                    }
+                }
+            }
+        }
+        stage ('Results'){
+            steps{
+                unstash name:'result-unit'
+                unstash name:'result-rest'
+                junit 'result-*.xml'
+            }
+        }
+    }
+}

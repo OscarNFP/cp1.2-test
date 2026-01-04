@@ -38,6 +38,7 @@ pipeline{
                                 python3 -m coverage xml
                             '''   
                         }
+                        junit 'result-unit.xml'
                     }
 
                 }
@@ -59,6 +60,7 @@ pipeline{
                             kill $WIREMOCK_PID
                             WIREMOCK_PATH=""
                         '''
+                        junit 'result-rest.xml'
                     }
                 }
             }
@@ -98,5 +100,14 @@ pipeline{
                 perfReport sourceDataFiles: 'flask.jtl'
             }
         } 
+    }
+    // Limpieza del workspace al finalizar el pipeline
+    post {
+        always {
+            cleanWs(
+                deleteDirs: true,
+                disableDeferredWipeout: true
+            )
+        }
     }
 }

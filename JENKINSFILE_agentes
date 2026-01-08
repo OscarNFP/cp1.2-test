@@ -19,6 +19,10 @@ pipeline{
                 hostname
                 '''
                 stash name:'code', includes:'**'
+                cleanWs(
+                    deleteDirs: true,
+                    disableDeferredWipeout: true
+                )
             }
         }
 
@@ -32,6 +36,10 @@ pipeline{
                 flake8 --exit-zero --format=pylint app > flake8.out
                 '''
                 recordIssues tools: [flake8(name: 'Flake8', pattern: 'flake8.out')], qualityGates: [[threshold: 9, type: 'TOTAL', unstable: true], [threshold: 11, type: 'TOTAL', unstable: false]]
+                cleanWs(
+                    deleteDirs: true,
+                    disableDeferredWipeout: true
+                )
             }
 
         }
@@ -48,12 +56,16 @@ pipeline{
                                     whoami
                                     hostname
                                     export PYTHONPATH=.
-                                    python3 -m coverage run --source=app --omit=app/__init__.py,app/api.py -m pytest --junitxml=result-unit.xml test/unit
+                                    python3 -m coverage --branch run --source=app --omit=app/__init__.py,app/api.py -m pytest --junitxml=result-unit.xml test/unit
                                     python3 -m coverage xml
                                 '''
                             }
                             stash name: 'coverage', includes: 'coverage.xml'
                             junit 'result-unit.xml'
+                            cleanWs(
+                               deleteDirs: true,
+                                disableDeferredWipeout: true
+                            )    
                         }
                 }
                 stage('REST'){
@@ -78,6 +90,10 @@ pipeline{
                             WIREMOCK_PATH=""                  
                         '''
                         junit 'result-rest.xml'
+                        cleanWs(
+                            deleteDirs: true,
+                            disableDeferredWipeout: true
+                        )
                     }
                 }
             }
@@ -99,10 +115,13 @@ pipeline{
                             hostname
                         '''
                         recordCoverage qualityGates: [[criticality: 'ERROR', integerThreshold: 85, metric: 'LINE', threshold: 85.0] ,[integerThreshold: 95, metric: 'LINE', threshold: 95.0], [criticality: 'ERROR', integerThreshold: 80, metric: 'BRANCH', threshold: 80.0], [integerThreshold: 90, metric: 'BRANCH', threshold: 90.0]], tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']]
+                        cleanWs(
+                           deleteDirs: true,
+                            disableDeferredWipeout: true
+                        )
                     }
                 }
-
-                // Estapa de test de seguridad
+                // Etapa de test de seguridad
                 stage('Security Test') {
                     agent { label 'agent2' }
                     steps {
@@ -114,6 +133,10 @@ pipeline{
                             bandit --exit-zero -r . -f custom -o bandit.out --msg-template "{abspath}:{line}: [{test_id}] {msg}"
                         '''
                         recordIssues tools: [pyLint(name: 'Bandit', pattern: 'bandit.out')], qualityGates: [[threshold: 1, type: 'TOTAL', unstable: true], [threshold: 2, type: 'TOTAL', unstable: false]]
+                        cleanWs(
+                           deleteDirs: true,
+                            disableDeferredWipeout: true
+                        )
                     }
                 }
 
@@ -136,74 +159,13 @@ pipeline{
                             JMETER_PATH=""
                         '''
                         perfReport sourceDataFiles: 'flask.jtl'
-                    }
-                }
-            }
-        }
-        
-        // Etapa de limpieza de workspaces en agentes
-        stage('Cleanup') {
-            parallel {
-
-                stage('Clean agent1') {
-                    agent { label 'agent1' }
-                    steps {
-                        sh '''
-                            echo ${WORKSPACE}
-                            whoami
-                            hostname
-                        '''
                         cleanWs(
-                            deleteDirs: true,
-                            disableDeferredWipeout: true
-                        )
-                    }
-                }
-
-                stage('Clean agent2') {
-                    agent { label 'agent2' }
-                    steps {
-                        sh '''
-                            echo ${WORKSPACE}
-                            whoami
-                            hostname
-                        '''
-                        cleanWs(
-                            deleteDirs: true,
-                            disableDeferredWipeout: true
-                        )
-                    }
-                }
-                stage('Clean agent3') {
-                    agent { label 'agent3' }
-                    steps {
-                        sh '''
-                            echo ${WORKSPACE}
-                            whoami
-                            hostname
-                        '''
-                        cleanWs(
-                            deleteDirs: true,
+                           deleteDirs: true,
                             disableDeferredWipeout: true
                         )
                     }
                 }
             }
-        }
-    }
-
-    // Limpieza del workspace en Jenkins al finalizar el pipeline
-    post {
-        always {
-            sh '''
-                echo ${WORKSPACE}
-                whoami
-                hostname
-            '''
-            cleanWs(
-                deleteDirs: true,
-                disableDeferredWipeout: true
-            )
         }
     }
 }

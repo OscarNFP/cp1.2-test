@@ -99,13 +99,4 @@ pipeline{
             }
         } 
     }
-    // Limpieza del workspace al finalizar el pipeline
-    post {
-        always {
-            cleanWs(
-                deleteDirs: true,
-                disableDeferredWipeout: true
-            )
-        }
-    }
 }

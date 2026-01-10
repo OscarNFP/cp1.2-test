@@ -46,20 +46,22 @@ pipeline{
                 // Etapa tests de integración REST
                 stage('Rest'){
                     steps{
-                        sh '''
-                            export FLASK_APP=app/api.py
-                            flask run &
-                            FLASK_PID=$!
-                            WIREMOCK_PATH="/var/jenkins_home"
-                            java -jar $WIREMOCK_PATH/wiremock-standalone-3.13.2.jar --port 9090 --root-dir test/wiremock &
-                            WIREMOCK_PID=$!
-                            export PYTHONPATH=$WORKSPACE
-                            pytest --junitxml=result-rest.xml test/rest
-                            kill $FLASK_PID
-                            kill $WIREMOCK_PID
-                            WIREMOCK_PATH=""
-                        '''
-                        junit 'result-rest.xml'
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE'){
+                            sh '''
+                                export FLASK_APP=app/api.py
+                                flask run &
+                                FLASK_PID=$!
+                                WIREMOCK_PATH="/var/jenkins_home"
+                                java -jar $WIREMOCK_PATH/wiremock-standalone-3.13.2.jar --port 9090 --root-dir test/wiremock &
+                                WIREMOCK_PID=$!
+                                export PYTHONPATH=$WORKSPACE
+                                pytest --junitxml=result-rest.xml test/rest
+                                kill $FLASK_PID
+                                kill $WIREMOCK_PID
+                                WIREMOCK_PATH=""
+                            '''
+                            junit 'result-rest.xml'
+                        }
                     }
                 }
             }

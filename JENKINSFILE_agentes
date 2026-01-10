@@ -71,24 +71,27 @@ pipeline{
                 stage('REST'){
                     agent {label 'agent2'}
                     steps{
-                        unstash name:'code'
-                        sh '''
-                            echo ${WORKSPACE}
-                            whoami
-                            hostname
-                            export FLASK_APP=app/api.py
-                            flask run &
-                            FLASK_PID=$!
-                            WIREMOCK_PATH="/home/jenkins/agent"
-                            java -jar $WIREMOCK_PATH/wiremock-standalone-3.13.2.jar --port 9090 --root-dir test/wiremock &
-                            WIREMOCK_PID=$!
-                            export PYTHONPATH=$WORKSPACE
-                            pytest --junitxml=result-rest.xml test/rest
-                            kill $FLASK_PID
-                            kill $WIREMOCK_PID
-                            WIREMOCK_PATH=""                  
-                        '''
-                        junit 'result-rest.xml'
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE'){
+                            unstash name:'code'
+                            sh '''
+                                echo ${WORKSPACE}
+                                whoami
+                                hostname
+                                export FLASK_APP=app/api.py
+                                flask run &
+                                FLASK_PID=$!
+                                WIREMOCK_PATH="/home/jenkins/agent"
+                                java -jar $WIREMOCK_PATH/wiremock-standalone-3.13.2.jar --port 9090 --root-dir test/wiremock &
+                                WIREMOCK_PID=$!
+                                export PYTHONPATH=$WORKSPACE
+                                sleep 4
+                                pytest --junitxml=result-rest.xml test/rest
+                                kill $FLASK_PID
+                                kill $WIREMOCK_PID
+                                WIREMOCK_PATH=""                  
+                            '''
+                            junit 'result-rest.xml'
+                        }
                         cleanWs(
                             deleteDirs: true,
                             disableDeferredWipeout: true
@@ -152,6 +155,7 @@ pipeline{
                             flask run &
                             FLASK_PID=$!
                             JMETER_PATH="/home/jenkins/agent/apache-jmeter-5.6.3/bin"
+                            sleep 4
                             $JMETER_PATH/jmeter.sh -n -t test/jmeter/performance-test.jmx  -f -l flask.jtl
                             kill $FLASK_PID
                             JMETER_PATH=""

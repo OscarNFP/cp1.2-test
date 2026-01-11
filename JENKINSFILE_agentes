@@ -125,7 +125,7 @@ pipeline{
                 }
                 // Etapa de test de seguridad
                 stage('Security Test') {
-                    agent { label 'agent1' }
+                    agent { label 'agent2' }
                     steps {
                         unstash 'code'
                         sh '''
@@ -141,32 +141,32 @@ pipeline{
                         )
                     }
                 }
+            }
+        }
 
-               // Pruebas de rendimiento
-                stage('Performance') {
-                    agent { label 'agent2' }
-                    steps {
-                        unstash 'code'
-                        sh '''
-                            echo ${WORKSPACE}
-                            whoami
-                            hostname
-                            export FLASK_APP=app/api.py
-                            flask run &
-                            FLASK_PID=$!
-                            JMETER_PATH="/home/jenkins/agent/apache-jmeter-5.6.3/bin"
-                            sleep 4
-                            $JMETER_PATH/jmeter.sh -n -t test/jmeter/performance-test.jmx  -f -l flask.jtl
-                            kill $FLASK_PID
-                            JMETER_PATH=""
-                        '''
-                        perfReport sourceDataFiles: 'flask.jtl'
-                        cleanWs(
-                           deleteDirs: true,
-                            disableDeferredWipeout: true
-                        )
-                    }
-                }
+        // Pruebas de rendimiento
+        stage('Performance') {
+            agent { label 'agent2' }
+            steps {
+                unstash 'code'
+                sh '''
+                    echo ${WORKSPACE}
+                    whoami
+                    hostname
+                    export FLASK_APP=app/api.py
+                    flask run &
+                    FLASK_PID=$!
+                    JMETER_PATH="/home/jenkins/agent/apache-jmeter-5.6.3/bin"
+                    sleep 4
+                    $JMETER_PATH/jmeter.sh -n -t test/jmeter/performance-test.jmx  -f -l flask.jtl
+                    kill $FLASK_PID
+                    JMETER_PATH=""
+                '''
+                perfReport sourceDataFiles: 'flask.jtl'
+                cleanWs(
+                    deleteDirs: true,
+                    disableDeferredWipeout: true
+                )
             }
         }
     }

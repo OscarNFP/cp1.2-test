@@ -26,7 +26,7 @@ class TestCalculate(unittest.TestCase):
     def test_divide_method_returns_correct_result(self):
         self.assertEqual(1, self.calc.divide(2, 2))
         self.assertEqual(1.5, self.calc.divide(3, 2))
-        self.assertEqual(0.6, self.calc.divide(2, 3))
+        self.assertEqual(0.6666666666666666, self.calc.divide(2, 3))
         self.assertRaises(TypeError, self.calc.divide, "2", 2)
         self.assertRaises(TypeError, self.calc.divide, 2, "2")
   
@@ -64,7 +64,7 @@ class TestCalculate(unittest.TestCase):
         self.assertEqual(0, self.calc.power(0, 0))
         self.assertEqual(1, self.calc.power(-1, 0))
         self.assertEqual(-27, self.calc.power(-3, 3))
-        self.assertEqual(0.1, self.calc.power(3, -2))
+        self.assertEqual(0.1111111111111111, self.calc.power(3, -2))
         self.assertRaises(TypeError, self.calc.power, "0", 0)
         self.assertRaises(TypeError, self.calc.power, 0, "0")
         self.assertRaises(TypeError, self.calc.power, "0", "0")

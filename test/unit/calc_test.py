@@ -61,7 +61,7 @@ class TestCalculate(unittest.TestCase):
         self.assertEqual(4, self.calc.power(2, 2))
         self.assertEqual(1, self.calc.power(1, 0))
         self.assertEqual(0, self.calc.power(0, 1))
-        self.assertEqual(0, self.calc.power(0, 0))
+        self.assertEqual(1, self.calc.power(0, 0))
         self.assertEqual(1, self.calc.power(-1, 0))
         self.assertEqual(-27, self.calc.power(-3, 3))
         self.assertEqual(0.1111111111111111, self.calc.power(3, -2))

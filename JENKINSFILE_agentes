@@ -125,7 +125,7 @@ pipeline{
                 }
                 // Etapa de test de seguridad
                 stage('Security Test') {
-                    agent { label 'agent2' }
+                    agent { label 'agent1' }
                     steps {
                         unstash 'code'
                         sh '''
